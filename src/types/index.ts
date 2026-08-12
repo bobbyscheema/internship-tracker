@@ -1,0 +1,44 @@
+export type RoleTrack = "swe" | "ml" | "quant";
+export type WorkMode = "onsite" | "hybrid";
+export type Experience = "sophomore" | "junior" | "senior" | "all-undergrad";
+
+export interface Role {
+  id: string;
+  company: string;
+  title: string;
+  track: RoleTrack;
+  location: string;
+  workMode: WorkMode;
+  experience: Experience[];
+  description: string;
+  requirements: string[];
+  skills: string[];
+  postedAt: string;
+  deadline?: string;
+  sourceUrl: string;
+  source: string;
+  featured: boolean;
+  featuredGroup?: "Big Tech" | "Quant" | "Top AI";
+  matchScore?: number;
+  matchReasons?: string[];
+}
+
+export interface InterviewInsight {
+  id: string;
+  roleId: string;
+  type: "oa" | "technical" | "behavioral" | "general";
+  title: string;
+  summary: string;
+  sourceUrl: string;
+  sourceName: string;
+  publishedAt?: string;
+}
+
+export interface ResumeProfile {
+  filename: string;
+  uploadedAt: string;
+  text: string;
+  skills: string[];
+  graduationYear?: number;
+  locations: string[];
+}
