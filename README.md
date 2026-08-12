@@ -13,7 +13,7 @@ A polished, local-first tracker for **US-based, onsite/hybrid Summer 2027 underg
 - A focused inbox: opening the original employer posting permanently hides that role locally
 - Company-level interview and OA reports from recent Reddit discussions
 - Track-specific technical and behavioral preparation advice
-- Daily SMTP email alerts for new roles and nearby deadlines
+- GUI-configured email alerts for new roles and nearby deadlines, with 15-minute, hourly, six-hour, or daily delivery
 - SQLite persistence with no accounts and no cloud data storage
 
 ## Run locally
@@ -29,11 +29,7 @@ Open [http://localhost:3000](http://localhost:3000). The first page load starts 
 
 ## Email alerts
 
-```bash
-cp .env.example .env.local
-```
-
-Add SMTP credentials and restart the app. For Gmail, use an app password rather than your normal password. Alerts are evaluated every 30 minutes and sent once daily at `ALERT_HOUR` while the local app is running.
+Open **Alerts** in the sidebar and configure everything in the GUI. Choose Gmail, Outlook, Yahoo, or custom SMTP; enter the sending account's app password; choose a frequency; send a test; and enable alerts. Settings take effect without restarting and remain only in the local gitignored database. The app must be running for scheduled emails to send.
 
 ## Local data and privacy
 

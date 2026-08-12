@@ -203,10 +203,47 @@ function ResumePanel({ hasResume, resumeName, onUpload, roles }: { hasResume: bo
 }
 
 function AlertsPanel({ notify }: { notify: (value: string) => void }) {
-  const [configured, setConfigured] = useState<boolean>();
-  useEffect(() => { fetch("/api/settings").then((r) => r.json()).then((r) => setConfigured(r.emailConfigured)); }, []);
-  const test = async () => { const response = await fetch("/api/settings", { method: "POST" }); const result = await response.json(); notify(response.ok ? "Test alert sent" : result.error); };
-  return <section className="tool-page"><div className="alert-layout"><div className="tool-hero compact"><span><Icon name="bell" /></span><p>DAILY DIGEST</p><h2>Never miss the drop.</h2><p>A digest runs every morning while the local app is running. It includes newly posted roles and application deadlines within three days.</p><div className={`config-status ${configured ? "ready" : ""}`}><i></i><div><strong>{configured ? "Email alerts configured" : "Setup needed"}</strong><small>{configured ? "Daily at 8:00 AM local time" : "Copy .env.example to .env.local and add SMTP details"}</small></div></div><button onClick={test} disabled={!configured}><Icon name="bell" />Send test email</button></div><div className="alert-preview"><p>INTERN RADAR · DAILY</p><h3>3 fresh roles just landed</h3><div><span>01</span><p><b>Software Engineering Intern</b><small>Example Company · New York, NY</small></p><em>92% match</em></div><div><span>02</span><p><b>ML Engineering Intern</b><small>Example AI Lab · San Francisco, CA</small></p><em>86% match</em></div><footer>Preview only · real alerts contain verified roles</footer></div></div></section>;
+  type Form = { enabled: boolean; provider: "gmail" | "outlook" | "yahoo" | "custom"; recipient: string; username: string; password: string; hasPassword: boolean; host: string; port: number; secure: boolean; frequency: "15m" | "1h" | "6h" | "daily"; dailyHour: number };
+  const [form, setForm] = useState<Form>({ enabled: false, provider: "gmail", recipient: "", username: "", password: "", hasPassword: false, host: "smtp.gmail.com", port: 465, secure: true, frequency: "1h", dailyHour: 8 });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  useEffect(() => { fetch("/api/settings").then((r) => r.json()).then((settings) => setForm((current) => ({ ...current, ...settings }))).finally(() => setLoading(false)); }, []);
+  const payload = () => ({ ...form, password: form.password || undefined });
+  const save = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      setForm((current) => ({ ...current, hasPassword: result.hasPassword, password: "" })); notify("Email alert settings saved");
+    } catch (error) { notify(error instanceof Error ? error.message : "Could not save settings"); }
+    finally { setSaving(false); }
+  };
+  const test = async () => {
+    setTesting(true);
+    try {
+      const response = await fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      setForm((current) => ({ ...current, hasPassword: true, password: "" })); notify("Test email sent—check your inbox");
+    } catch (error) { notify(error instanceof Error ? error.message : "Could not send test email"); }
+    finally { setTesting(false); }
+  };
+  const update = <K extends keyof Form,>(key: K, value: Form[K]) => setForm((current) => ({ ...current, [key]: value }));
+  if (loading) return <section className="tool-page"><div className="alert-form loading-panel">Loading email settings…</div></section>;
+  return <section className="tool-page alert-page">
+    <div className="alert-intro"><span><Icon name="bell" /></span><div><p>ROLE DROP ALERTS</p><h2>Get new internships in your inbox.</h2><span>Everything is configured here and saved only on this computer.</span></div><label className="toggle"><input type="checkbox" checked={form.enabled} onChange={(e) => update("enabled", e.target.checked)} /><i></i><b>{form.enabled ? "Enabled" : "Paused"}</b></label></div>
+    <div className="alert-grid">
+      <form className="alert-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+        <div className="form-section"><div><b>01</b><span><strong>Inbox</strong><small>Where alerts should arrive</small></span></div><label>Recipient email<input type="email" required value={form.recipient} onChange={(e) => update("recipient", e.target.value)} placeholder="you@example.com" /></label></div>
+        <div className="form-section"><div><b>02</b><span><strong>Sending account</strong><small>Use an app password from your email provider</small></span></div><div className="provider-row">{(["gmail", "outlook", "yahoo", "custom"] as const).map((provider) => <button type="button" className={form.provider === provider ? "active" : ""} onClick={() => update("provider", provider)} key={provider}>{provider === "custom" ? "Custom" : provider[0].toUpperCase() + provider.slice(1)}</button>)}</div><div className="form-columns"><label>Sending email<input type="email" required value={form.username} onChange={(e) => update("username", e.target.value)} placeholder="sender@gmail.com" /></label><label>App password<input type="password" required={!form.hasPassword} value={form.password} onChange={(e) => update("password", e.target.value)} placeholder={form.hasPassword ? "Saved—leave blank to keep" : "Enter app password"} /></label></div>{form.provider === "custom" && <div className="form-columns custom-smtp"><label>SMTP host<input required value={form.host} onChange={(e) => update("host", e.target.value)} placeholder="smtp.example.com" /></label><label>Port<input type="number" required value={form.port} onChange={(e) => update("port", Number(e.target.value))} /></label><label className="secure-check"><input type="checkbox" checked={form.secure} onChange={(e) => update("secure", e.target.checked)} />Use direct TLS</label></div>}<p className="form-help">For Gmail, Yahoo, or accounts with two-factor authentication, create an app password in your provider&apos;s security settings. Your password remains in the local gitignored database.</p></div>
+        <div className="form-section"><div><b>03</b><span><strong>Frequency</strong><small>How quickly you want new drops</small></span></div><div className="frequency-row">{([{"id":"15m","label":"15 min"},{"id":"1h","label":"Hourly"},{"id":"6h","label":"Every 6h"},{"id":"daily","label":"Daily"}] as const).map((item) => <button type="button" className={form.frequency === item.id ? "active" : ""} onClick={() => update("frequency", item.id)} key={item.id}>{item.label}</button>)}</div>{form.frequency === "daily" && <label className="daily-time">Delivery hour<select value={form.dailyHour} onChange={(e) => update("dailyHour", Number(e.target.value))}>{Array.from({ length: 24 }, (_, hour) => <option value={hour} key={hour}>{new Date(2020, 0, 1, hour).toLocaleTimeString([], { hour: "numeric" })}</option>)}</select></label>}</div>
+        <div className="form-actions"><button type="button" className="test-button" onClick={() => void test()} disabled={testing || saving}>{testing ? "Sending…" : "Send test email"}</button><button className="save-button" type="submit" disabled={saving || testing}><Icon name="check" />{saving ? "Saving…" : "Save alert settings"}</button></div>
+      </form>
+      <aside className="alert-summary"><p>YOUR ALERT PLAN</p><h3>{form.enabled ? "Radar is watching." : "Alerts are paused."}</h3><div><span><Icon name="bell" /></span><p><b>{form.frequency === "15m" ? "Every 15 minutes" : form.frequency === "1h" ? "Every hour" : form.frequency === "6h" ? "Every 6 hours" : `Daily at ${new Date(2020, 0, 1, form.dailyHour).toLocaleTimeString([], { hour: "numeric" })}`}</b><small>Only newly discovered, unviewed roles</small></p></div><div><span><Icon name="file" /></span><p><b>{form.recipient || "No recipient yet"}</b><small>Direct links, locations, tracks, and deadlines</small></p></div><div><span><Icon name="spark" /></span><p><b>Local and private</b><small>No account or external alert service</small></p></div><footer>The local app must be running for scheduled emails to send.</footer></aside>
+    </div>
+  </section>;
 }
 
 function RoleDrawer({ role, insights, loading, onClose, onViewed }: { role: Role; insights: InterviewInsight[]; loading: boolean; onClose: () => void; onViewed: (r: Role) => void }) {
