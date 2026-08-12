@@ -1,13 +1,32 @@
 import { NextResponse } from "next/server";
-import { sendEmail } from "@/lib/email";
+import { getEmailSettings, saveEmailSettings, sendTestEmail, type EmailAlertSettings } from "@/lib/email";
+
+export const runtime = "nodejs";
 
 export async function GET() {
-  return NextResponse.json({ emailConfigured: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD && process.env.ALERT_EMAIL_TO), alertTo: process.env.ALERT_EMAIL_TO ? process.env.ALERT_EMAIL_TO.replace(/^(.{2}).*(@.*)$/, "$1•••$2") : undefined });
+  const settings = getEmailSettings();
+  return NextResponse.json({
+    enabled: settings.enabled, provider: settings.provider, recipient: settings.recipient,
+    username: settings.username, hasPassword: Boolean(settings.password), host: settings.host,
+    port: settings.port, secure: settings.secure, frequency: settings.frequency, dailyHour: settings.dailyHour,
+  });
 }
 
-export async function POST() {
+export async function PUT(request: Request) {
   try {
-    await sendEmail("Internship Radar alerts are ready", "<h2>You're set.</h2><p>Your daily Summer 2027 internship digest is configured correctly.</p>");
+    const body = await request.json() as Partial<EmailAlertSettings>;
+    const saved = saveEmailSettings(body);
+    return NextResponse.json({ ok: true, enabled: saved.enabled, hasPassword: Boolean(saved.password) });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not save alert settings" }, { status: 400 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json() as Partial<EmailAlertSettings>;
+    const settings = saveEmailSettings(body);
+    await sendTestEmail(settings);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not send email" }, { status: 400 });

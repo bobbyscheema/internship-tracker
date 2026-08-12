@@ -7,7 +7,7 @@ A polished, local-first tracker for **US-based, onsite/hybrid Summer 2027 underg
 - Separate SWE, ML, and Quant Engineering feeds (software, quantitative developer, systems, infrastructure, data, reliability, security, and adjacent engineering roles at quant firms, hedge funds, and prop shops)
 - Employer-board scraping on startup, every 5 minutes, and through a manual refresh
 - A strict seven-day feed based on the employer-controlled posting timestamp
-- Persistent Big Tech, Quant, and Top AI watchlists while listings remain active
+- Curated Frontier AI, Elite Quant, and Premium Tech watchlists selected for intern compensation, engineering reputation, and selectivity
 - Filters for US location and undergraduate experience level, including sophomore-friendly roles
 - Local PDF/DOCX resume storage and explainable fit scoring
 - A focused inbox: opening the original employer posting permanently hides that role locally

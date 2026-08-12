@@ -6,11 +6,18 @@ import type { InterviewInsight, Role, RoleTrack } from "@/types";
 
 type FeedResponse = { roles: Role[]; lastScrapeAt?: string; hasResume: boolean; resumeName?: string };
 type Section = "discover" | "featured" | "resume" | "alerts";
+type FeaturedGroup = NonNullable<Role["featuredGroup"]>;
 
 const TRACKS: { id: RoleTrack; label: string; subtitle: string }[] = [
   { id: "swe", label: "Software Engineering", subtitle: "Product, infra & systems" },
   { id: "ml", label: "Machine Learning", subtitle: "AI, research & applied ML" },
   { id: "quant", label: "Quant Engineering", subtitle: "SWE at quant firms" },
+];
+
+const FEATURED_GROUPS: { id: FeaturedGroup; label: string; subtitle: string; icon: string }[] = [
+  { id: "Top AI", label: "Frontier AI", subtitle: "Leading model labs & AI infrastructure", icon: "✦" },
+  { id: "Quant", label: "Elite Quant", subtitle: "Top-paying prop shops & systematic firms", icon: "∿" },
+  { id: "Big Tech", label: "Premium Tech", subtitle: "Selective, high-comp engineering programs", icon: "⌘" },
 ];
 
 function ageLabel(date: string) {
@@ -28,6 +35,7 @@ export default function Dashboard() {
   const [feed, setFeed] = useState<FeedResponse>({ roles: [], hasResume: false });
   const [section, setSection] = useState<Section>("discover");
   const [track, setTrack] = useState<RoleTrack>("swe");
+  const [featuredGroup, setFeaturedGroup] = useState<FeaturedGroup>("Top AI");
   const [experience, setExperience] = useState("all");
   const [location, setLocation] = useState("all");
   const [query, setQuery] = useState("");
@@ -104,13 +112,13 @@ export default function Dashboard() {
 
   const locations = useMemo(() => [...new Set(feed.roles.map((role) => role.location))].sort(), [feed.roles]);
   const visible = useMemo(() => rolePool.filter((role) => {
-    if (role.track !== track) return false;
+    if (section === "featured" ? role.featuredGroup !== featuredGroup : role.track !== track) return false;
     if (experience !== "all" && !role.experience.includes(experience as Role["experience"][number]) && !role.experience.includes("all-undergrad")) return false;
     if (location !== "all" && role.location !== location) return false;
     return `${role.company} ${role.title} ${role.skills.join(" ")}`.toLowerCase().includes(query.toLowerCase());
-  }).sort((a, b) => sort === "match" ? (b.matchScore ?? 0) - (a.matchScore ?? 0) : +new Date(b.postedAt) - +new Date(a.postedAt)), [rolePool, track, experience, location, query, sort]);
+  }).sort((a, b) => sort === "match" ? (b.matchScore ?? 0) - (a.matchScore ?? 0) : +new Date(b.postedAt) - +new Date(a.postedAt)), [rolePool, section, featuredGroup, track, experience, location, query, sort]);
 
-  const title = section === "discover" ? "Fresh opportunities" : section === "featured" ? "Featured companies" : section === "resume" ? "Resume match" : "Daily alerts";
+  const title = section === "discover" ? "Fresh opportunities" : section === "featured" ? "The short list" : section === "resume" ? "Resume match" : "Daily alerts";
 
   return <div className="app-shell">
     <aside className="sidebar">
@@ -144,14 +152,15 @@ export default function Dashboard() {
 
       {section === "resume" ? <ResumePanel hasResume={feed.hasResume} resumeName={feed.resumeName} onUpload={() => fileRef.current?.click()} roles={feed.roles} /> :
        section === "alerts" ? <AlertsPanel notify={setToast} /> : <>
+        {section === "featured" && <section className="featured-intro"><div><span>CURATED WATCHLIST</span><h2>Prestige and pay, without the noise.</h2><p>Only highly selective companies with exceptional engineering brands or consistently top-tier intern compensation make this page.</p></div><Icon name="spark" /></section>}
         <section className="metrics">
           <div><span className="metric-icon purple"><Icon name="briefcase" /></span><div><strong>{rolePool.length}</strong><small>{section === "featured" ? "Featured roles" : "Active roles"}</small></div><em>US only</em></div>
           <div><span className="metric-icon green"><Icon name="spark" /></span><div><strong>{feed.hasResume ? feed.roles.filter((r) => (r.matchScore ?? 0) >= 70).length : "—"}</strong><small>Strong matches</small></div><em>{feed.hasResume ? "70%+ fit" : "Add resume"}</em></div>
           <div><span className="metric-icon orange"><Icon name="refresh" /></span><div><strong>5 min</strong><small>Automatic refresh</small></div><em>Always scanning</em></div>
         </section>
 
-        <section className="track-tabs">
-          {TRACKS.map((item) => <button key={item.id} className={track === item.id ? "active" : ""} onClick={() => setTrack(item.id)}><span>{item.id === "swe" ? "</>" : item.id === "ml" ? "✦" : "∿"}</span><div><strong>{item.label}</strong><small>{item.subtitle}</small></div><b>{rolePool.filter((role) => role.track === item.id).length}</b></button>)}
+        <section className={`track-tabs ${section === "featured" ? "featured-tabs" : ""}`}>
+          {section === "featured" ? FEATURED_GROUPS.map((item) => <button key={item.id} className={featuredGroup === item.id ? "active" : ""} onClick={() => setFeaturedGroup(item.id)}><span>{item.icon}</span><div><strong>{item.label}</strong><small>{item.subtitle}</small></div><b>{rolePool.filter((role) => role.featuredGroup === item.id).length}</b></button>) : TRACKS.map((item) => <button key={item.id} className={track === item.id ? "active" : ""} onClick={() => setTrack(item.id)}><span>{item.id === "swe" ? "</>" : item.id === "ml" ? "✦" : "∿"}</span><div><strong>{item.label}</strong><small>{item.subtitle}</small></div><b>{rolePool.filter((role) => role.track === item.id).length}</b></button>)}
         </section>
 
         <section className="toolbar">
@@ -161,7 +170,7 @@ export default function Dashboard() {
           <select value={sort} onChange={(e) => setSort(e.target.value as "newest" | "match")} aria-label="Sort"><option value="newest">Newest first</option><option value="match" disabled={!feed.hasResume}>Best match</option></select>
         </section>
 
-        <div className="section-heading"><div><h2>{section === "featured" ? "Always-on watchlist" : `${TRACKS.find((t) => t.id === track)?.label} roles`}</h2><p>{section === "featured" ? "Big Tech, top AI, and quant roles stay here while active." : "Verified employer timestamps · posted within the last 7 days · opened roles disappear"}</p></div><span>{visible.length} result{visible.length === 1 ? "" : "s"}</span></div>
+        <div className="section-heading"><div><h2>{section === "featured" ? `${FEATURED_GROUPS.find((group) => group.id === featuredGroup)?.label} internships` : `${TRACKS.find((t) => t.id === track)?.label} roles`}</h2><p>{section === "featured" ? `${FEATURED_GROUPS.find((group) => group.id === featuredGroup)?.subtitle}. Curated for compensation, selectivity, and engineering reputation.` : "Verified employer timestamps · posted within the last 7 days · opened roles disappear"}</p></div><span>{visible.length} result{visible.length === 1 ? "" : "s"}</span></div>
         <section className="role-list">
           {loading ? <LoadingRows /> : visible.length ? visible.map((role) => <RoleCard key={role.id} role={role} hasResume={feed.hasResume} onOpen={openRole} />) : <EmptyState refreshing={refreshing} onRefresh={refresh} onUpload={() => fileRef.current?.click()} />}
         </section>

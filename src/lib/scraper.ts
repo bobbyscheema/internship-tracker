@@ -10,8 +10,7 @@ const DEFAULT_BOARDS = [
 
 const FEATURED: Record<string, Role["featuredGroup"]> = {
   openai: "Top AI", anthropic: "Top AI", scaleai: "Top AI", nvidia: "Top AI",
-  stripe: "Big Tech", figma: "Big Tech", datadog: "Big Tech", roblox: "Big Tech",
-  lyft: "Big Tech", cloudflare: "Big Tech", airbnb: "Big Tech", spacex: "Big Tech",
+  stripe: "Big Tech", figma: "Big Tech", roblox: "Big Tech", airbnb: "Big Tech",
   twosigma: "Quant", citadel: "Quant"
 };
 
@@ -35,7 +34,12 @@ const QUANT_FIRMS = new Set([
   "valkyrie trading", "virtu financial", "walleye capital", "wolverine trading", "worldquant", "xtx markets"
 ]);
 
-const BIG_TECH = new Set(["airbnb", "amazon", "apple", "bytedance", "cloudflare", "datadog", "figma", "google", "lyft", "meta", "microsoft", "netflix", "nvidia", "palantir", "roblox", "spacex", "stripe", "tiktok"]);
+const ELITE_QUANT = new Set([
+  "citadel", "citadel securities", "d. e. shaw", "de shaw", "five rings", "headlands technologies",
+  "hudson river trading", "imc", "imc trading", "jane street", "jump trading", "jump trading group",
+  "optiver", "radix trading", "tower research capital", "two sigma", "xtx markets"
+]);
+const BIG_TECH = new Set(["airbnb", "amazon", "apple", "coinbase", "databricks", "figma", "google", "meta", "microsoft", "netflix", "nvidia", "roblox", "snowflake", "stripe"]);
 const TOP_AI = new Set(["anthropic", "character.ai", "cohere", "mistral ai", "nvidia", "openai", "perplexity ai", "scale ai", "xai"]);
 const EXCLUDED_COMPANIES = new Set(["bytedance", "tiktok"]);
 
@@ -100,7 +104,7 @@ function isQuantFirm(company: string) { return QUANT_FIRMS.has(normalizedCompany
 function isEngineeringAdjacent(title: string) {
   const value = title.toLowerCase();
   return /software|developer|development|quantitative dev|technology|systems|infrastructure|platform|engineering|engineer|site reliability|\bsre\b|devops|data engineer|security engineer|network engineer|cloud engineer/.test(value)
-    && !/trader|trading intern|research intern|researcher|quantitative research|analyst|strategy|portfolio|risk|operations/.test(value);
+    && !/trader|trading intern|research|analyst|strategy|portfolio|risk|operations/.test(value);
 }
 
 function classify(company: string, title: string, body: string, category?: string): RoleTrack | undefined {
@@ -116,7 +120,7 @@ function classify(company: string, title: string, body: string, category?: strin
 function featuredGroupFor(company: string): Role["featuredGroup"] | undefined {
   const value = normalizedCompany(company);
   if (TOP_AI.has(value)) return "Top AI";
-  if (QUANT_FIRMS.has(value)) return "Quant";
+  if (ELITE_QUANT.has(value)) return "Quant";
   if (BIG_TECH.has(value)) return "Big Tech";
 }
 
