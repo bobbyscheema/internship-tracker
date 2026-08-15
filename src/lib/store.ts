@@ -23,6 +23,9 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS viewed_roles (
     role_id TEXT PRIMARY KEY, viewed_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS emailed_roles (
+    role_id TEXT PRIMARY KEY, emailed_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS insights (
     id TEXT PRIMARY KEY, role_id TEXT NOT NULL, type TEXT NOT NULL, title TEXT NOT NULL,
     summary TEXT NOT NULL, source_url TEXT NOT NULL, source_name TEXT NOT NULL, published_at TEXT
@@ -71,6 +74,25 @@ export function getRole(id: string) { return getRoles().find((role) => role.id =
 
 export function markRoleViewed(roleId: string) {
   db.prepare(`INSERT OR IGNORE INTO viewed_roles(role_id,viewed_at) VALUES(?,?)`).run(roleId, new Date().toISOString());
+}
+
+export function getEmailedRoleIds() {
+  const rows = db.prepare(`SELECT role_id FROM emailed_roles`).all() as { role_id: string }[];
+  return new Set(rows.map((row) => row.role_id));
+}
+
+export function markRolesEmailed(roleIds: string[]) {
+  if (!roleIds.length) return;
+  const statement = db.prepare(`INSERT OR IGNORE INTO emailed_roles(role_id,emailed_at) VALUES(?,?)`);
+  const emailedAt = new Date().toISOString();
+  db.exec("BEGIN");
+  try {
+    for (const roleId of roleIds) statement.run(roleId, emailedAt);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function saveInsight(insight: InterviewInsight) {
