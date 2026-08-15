@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { extractSkills } from "@/lib/matching";
-import { deactivateAllRoles, finishScrape, getSetting, saveInsight, startScrape, upsertRole } from "@/lib/store";
+import { deactivateAllRoles, finishScrape, getRoleEnrichment, getSetting, saveInsight, saveRoleEnrichment, startScrape, upsertRole } from "@/lib/store";
 import type { Experience, InterviewInsight, Role, RoleTrack } from "@/types";
 
 const DEFAULT_BOARDS = [
@@ -213,7 +213,39 @@ async function scrapeSimplifyRepository(): Promise<Role[]> {
       source: "SimplifyJobs GitHub", featured: Boolean(featuredGroup), featuredGroup
     });
   }
-  return roles;
+  const enriched: Role[] = [];
+  for (let index = 0; index < roles.length; index += 6) {
+    enriched.push(...await Promise.all(roles.slice(index, index + 6).map(enrichIndexedRole)));
+  }
+  return enriched;
+}
+
+async function enrichIndexedRole(role: Role): Promise<Role> {
+  const cached = getRoleEnrichment(role.sourceUrl);
+  const cacheAge = cached ? Date.now() - new Date(cached.fetchedAt).getTime() : Infinity;
+  if (cached?.successful) return { ...role, description: cached.description, requirements: cached.requirements, skills: cached.skills };
+  if (cached && cacheAge < 24 * 60 * 60_000) return role;
+  try {
+    const url = new URL(role.sourceUrl);
+    if (url.protocol !== "https:") return role;
+    const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 InternshipRadar/0.1 personal-use", Accept: "text/html,application/xhtml+xml" }, redirect: "follow", cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const contentLength = Number(response.headers.get("content-length") ?? 0);
+    if (!response.ok || (contentLength && contentLength > 5_000_000) || !response.headers.get("content-type")?.includes("text/html")) throw new Error("Employer page unavailable");
+    const html = await response.text();
+    const cleaned = textOnly(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ").replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ").replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, " ").replace(/<nav\b[^>]*>[\s\S]*?<\/nav>/gi, " "));
+    const looksUseful = cleaned.length >= 450 && /intern/i.test(cleaned) && /responsibilit|qualification|requirement|candidate|enrolled|experience/i.test(cleaned);
+    if (!looksUseful) throw new Error("No readable job detail");
+    const titleIndex = cleaned.toLowerCase().indexOf(role.title.toLowerCase());
+    const start = titleIndex >= 0 ? titleIndex : 0;
+    const description = cleaned.slice(start, start + 3500);
+    const requirements = requirementsFrom(description);
+    const skills = extractSkills(description);
+    saveRoleEnrichment(role.sourceUrl, { description, requirements: requirements.length ? requirements : role.requirements, skills, successful: true });
+    return { ...role, description, requirements: requirements.length ? requirements : role.requirements, skills };
+  } catch {
+    saveRoleEnrichment(role.sourceUrl, { description: "", requirements: [], skills: [], successful: false });
+    return role;
+  }
 }
 
 async function runRoleScrape() {

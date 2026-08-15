@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon";
+import ResumeWorkspace from "./ResumeWorkspace";
 import type { InterviewInsight, Role, RoleTrack } from "@/types";
 
 type FeedResponse = { roles: Role[]; lastScrapeAt?: string; hasResume: boolean; resumeName?: string };
@@ -46,6 +47,7 @@ export default function Dashboard() {
   const [selected, setSelected] = useState<Role>();
   const [insights, setInsights] = useState<InterviewInsight[]>([]);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [tailorRoleId, setTailorRoleId] = useState<string>();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -150,7 +152,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {section === "resume" ? <ResumePanel hasResume={feed.hasResume} resumeName={feed.resumeName} onUpload={() => fileRef.current?.click()} roles={feed.roles} /> :
+      {section === "resume" ? <ResumeWorkspace hasResume={feed.hasResume} resumeName={feed.resumeName} onUpload={() => fileRef.current?.click()} roles={feed.roles} initialRoleId={tailorRoleId} notify={setToast} /> :
        section === "alerts" ? <AlertsPanel notify={setToast} /> : <>
         {section === "featured" && <section className="featured-intro"><div><span>CURATED WATCHLIST</span><h2>Prestige and pay, without the noise.</h2><p>Only highly selective companies with exceptional engineering brands or consistently top-tier intern compensation make this page.</p></div><Icon name="spark" /></section>}
         <section className="metrics">
@@ -178,7 +180,7 @@ export default function Dashboard() {
     </main>
 
     <input ref={fileRef} hidden type="file" accept=".pdf,.docx" onChange={(e) => { void uploadResume(e.target.files?.[0]); e.target.value = ""; }} />
-    {selected && <RoleDrawer role={selected} insights={insights} loading={insightsLoading} onClose={() => setSelected(undefined)} onViewed={hideViewedRole} />}
+    {selected && <RoleDrawer role={selected} insights={insights} loading={insightsLoading} onClose={() => setSelected(undefined)} onViewed={hideViewedRole} onTailor={(role) => { setTailorRoleId(role.id); setSection("resume"); setSelected(undefined); }} />}
     {toast && <div className="toast"><Icon name="check" />{toast}</div>}
   </div>;
 }
@@ -197,11 +199,6 @@ function EmptyState({ refreshing, onRefresh, onUpload }: { refreshing: boolean; 
 
 function LoadingRows() { return <>{[1, 2, 3].map((i) => <div className="role-card skeleton" key={i}><span></span><div><i></i><i></i><i></i></div></div>)}</>; }
 
-function ResumePanel({ hasResume, resumeName, onUpload, roles }: { hasResume: boolean; resumeName?: string; onUpload: () => void; roles: Role[] }) {
-  const best = [...roles].filter((r) => r.matchScore !== undefined).sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0)).slice(0, 3);
-  return <section className="tool-page"><div className="tool-hero"><span><Icon name="file" /></span><p>PRIVATE & LOCAL</p><h2>Make the feed work for you.</h2><p>Your resume stays in this project&apos;s gitignored data folder. We use skills, projects, coursework, graduation timing, experience level, and location signals to rank roles.</p><button onClick={onUpload}><Icon name="upload" />{hasResume ? "Replace resume" : "Upload PDF or DOCX"}</button>{hasResume && <small><Icon name="check" /> Matching with {resumeName}</small>}</div>{hasResume && <div className="best-matches"><div><h3>Your current best matches</h3><p>Scores update whenever new roles arrive.</p></div>{best.length ? best.map((role, index) => <article key={role.id}><b>0{index + 1}</b><CompanyMark company={role.company}/><div><strong>{role.title}</strong><span>{role.company} · {role.location}</span></div><em>{role.matchScore}%</em></article>) : <div className="mini-empty">Your matches will appear as soon as the scraper finds eligible Summer 2027 roles.</div>}</div>}</section>;
-}
-
 function AlertsPanel({ notify }: { notify: (value: string) => void }) {
   type Form = { enabled: boolean; provider: "gmail" | "outlook" | "yahoo" | "custom"; recipient: string; username: string; password: string; hasPassword: boolean; host: string; port: number; secure: boolean; frequency: "15m" | "1h" | "6h" | "daily"; dailyHour: number };
   const [form, setForm] = useState<Form>({ enabled: false, provider: "gmail", recipient: "", username: "", password: "", hasPassword: false, host: "smtp.gmail.com", port: 465, secure: true, frequency: "1h", dailyHour: 8 });
@@ -211,7 +208,8 @@ function AlertsPanel({ notify }: { notify: (value: string) => void }) {
   const [sendingDigest, setSendingDigest] = useState(false);
   useEffect(() => { fetch("/api/settings").then((r) => r.json()).then((settings) => setForm((current) => ({ ...current, ...settings }))).finally(() => setLoading(false)); }, []);
   const payload = () => {
-    const { hasPassword: _hasPassword, ...settings } = form;
+    const { hasPassword, ...settings } = form;
+    void hasPassword;
     return { ...settings, password: form.password || undefined };
   };
   const save = async () => {
@@ -261,7 +259,7 @@ function AlertsPanel({ notify }: { notify: (value: string) => void }) {
   </section>;
 }
 
-function RoleDrawer({ role, insights, loading, onClose, onViewed }: { role: Role; insights: InterviewInsight[]; loading: boolean; onClose: () => void; onViewed: (r: Role) => void }) {
+function RoleDrawer({ role, insights, loading, onClose, onViewed, onTailor }: { role: Role; insights: InterviewInsight[]; loading: boolean; onClose: () => void; onViewed: (r: Role) => void; onTailor: (r: Role) => void }) {
   const advice = role.track === "quant" ? ["Expect data structures, algorithms, and performance-minded coding.", "Review concurrency, networking, operating systems, and C++ or Python when listed.", "Practice explaining correctness and latency tradeoffs before optimizing."] : role.track === "ml" ? ["Be ready to connect model choices to evaluation metrics.", "Review core ML theory plus production-minded coding.", "Prepare one project story covering data, tradeoffs, and results."] : ["Practice medium-level data structures and algorithms under time pressure.", "Prepare concise stories for ownership, conflict, and learning quickly.", "Know the technical decisions behind every project on your resume."];
-  return <div className="drawer-backdrop" onMouseDown={onClose}><aside className="drawer" onMouseDown={(e) => e.stopPropagation()}><button className="drawer-close" onClick={onClose}><Icon name="close" /></button><div className="drawer-top"><CompanyMark company={role.company}/><div><span>{role.track.toUpperCase()} · SUMMER 2027</span><h2>{role.title}</h2><p>{role.company} · {role.location}</p></div>{role.matchScore !== undefined && <div className="drawer-score"><b>{role.matchScore}%</b><small>match</small></div>}</div><div className="drawer-actions"><a href={role.sourceUrl} target="_blank" rel="noreferrer" onClick={() => onViewed(role)}>View original posting · hide from feed <Icon name="arrow" /></a></div>{role.matchReasons?.length ? <section><h3>Why it fits</h3><ul className="fit-list">{role.matchReasons.map((reason) => <li key={reason}><Icon name="check" />{reason}</li>)}</ul></section> : null}<section><h3>Role snapshot</h3><p className="description">{role.description || "Open the original posting for the complete role description."}</p><div className="skill-row">{role.skills.map((skill) => <span key={skill}>{skill}</span>)}</div></section><section><h3>Interview playbook</h3><div className="advice-list">{advice.map((item, i) => <div key={item}><b>0{i + 1}</b><p>{item}</p></div>)}</div></section><section><div className="insight-title"><div><h3>Community reports</h3><p>Company and role-family level · verify dates and details</p></div></div>{loading ? <div className="insight-loading">Searching recent community discussions…</div> : insights.length ? insights.map((item) => <a className="insight" href={item.sourceUrl} target="_blank" rel="noreferrer" key={item.id}><span>{item.type}</span><div><strong>{item.title}</strong><p>{item.summary}</p><small>{item.sourceName}{item.publishedAt ? ` · ${new Date(item.publishedAt).toLocaleDateString()}` : ""}</small></div><Icon name="arrow" /></a>) : <div className="mini-empty">No recent community reports found. Try searching Reddit, LeetCode Discuss, and Glassdoor using the company and role title.</div>}</section></aside></div>;
+  return <div className="drawer-backdrop" onMouseDown={onClose}><aside className="drawer" onMouseDown={(e) => e.stopPropagation()}><button className="drawer-close" onClick={onClose}><Icon name="close" /></button><div className="drawer-top"><CompanyMark company={role.company}/><div><span>{role.track.toUpperCase()} · SUMMER 2027</span><h2>{role.title}</h2><p>{role.company} · {role.location}</p></div>{role.matchScore !== undefined && <div className="drawer-score"><b>{role.matchScore}%</b><small>match</small></div>}</div><div className="drawer-actions with-tailor"><button onClick={() => onTailor(role)}><Icon name="spark" />Tailor resume with AI</button><a href={role.sourceUrl} target="_blank" rel="noreferrer" onClick={() => onViewed(role)}>View original posting · hide from feed <Icon name="arrow" /></a></div>{role.matchReasons?.length ? <section><h3>Why it fits</h3><ul className="fit-list">{role.matchReasons.map((reason) => <li key={reason}><Icon name="check" />{reason}</li>)}</ul></section> : null}<section><h3>Role snapshot</h3><p className="description">{role.description || "Open the original posting for the complete role description."}</p><div className="skill-row">{role.skills.map((skill) => <span key={skill}>{skill}</span>)}</div></section><section><h3>Interview playbook</h3><div className="advice-list">{advice.map((item, i) => <div key={item}><b>0{i + 1}</b><p>{item}</p></div>)}</div></section><section><div className="insight-title"><div><h3>Community reports</h3><p>Company and role-family level · verify dates and details</p></div></div>{loading ? <div className="insight-loading">Searching recent community discussions…</div> : insights.length ? insights.map((item) => <a className="insight" href={item.sourceUrl} target="_blank" rel="noreferrer" key={item.id}><span>{item.type}</span><div><strong>{item.title}</strong><p>{item.summary}</p><small>{item.sourceName}{item.publishedAt ? ` · ${new Date(item.publishedAt).toLocaleDateString()}` : ""}</small></div><Icon name="arrow" /></a>) : <div className="mini-empty">No recent community reports found. Try searching Reddit, LeetCode Discuss, and Glassdoor using the company and role title.</div>}</section></aside></div>;
 }

@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import "pdf-parse/worker";
 import { PDFParse } from "pdf-parse";
-import { extractSkills } from "@/lib/matching";
+import { analyzeResumeText } from "@/lib/matching";
 import type { ResumeProfile } from "@/types";
 
 const run = promisify(execFile);
@@ -44,9 +44,11 @@ export async function saveAndParseResume(file: File): Promise<ResumeProfile> {
   }
   const year = text.match(/\b(2027|2028|2029|2030)\b/)?.[1];
   const locationMatches = text.match(/(?:San Francisco|New York|Seattle|Boston|Chicago|Austin|Los Angeles|San Jose|Palo Alto|Atlanta|Miami|Denver)/gi) ?? [];
+  const analysis = analyzeResumeText(text);
   return {
     filename: safeName, uploadedAt: new Date().toISOString(), text: text.slice(0, 50000),
-    skills: extractSkills(text), graduationYear: year ? Number(year) : undefined,
-    locations: [...new Set(locationMatches.map((value) => value.toLowerCase()))]
+    skills: analysis.skills, graduationYear: year ? Number(year) : undefined,
+    locations: [...new Set(locationMatches.map((value) => value.toLowerCase()))],
+    keywords: analysis.keywords, coursework: analysis.coursework, trackSignals: analysis.trackSignals,
   };
 }

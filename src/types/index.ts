@@ -21,6 +21,15 @@ export interface Role {
   featuredGroup?: "Big Tech" | "Quant" | "Top AI";
   matchScore?: number;
   matchReasons?: string[];
+  matchDetails?: {
+    skillFit: number;
+    trackFit: number;
+    eligibilityFit: number;
+    evidenceFit: number;
+    locationFit: number;
+    matchedSkills: string[];
+    missingSkills: string[];
+  };
 }
 
 export interface InterviewInsight {
@@ -41,4 +50,22 @@ export interface ResumeProfile {
   skills: string[];
   graduationYear?: number;
   locations: string[];
+  keywords?: string[];
+  coursework?: string[];
+  trackSignals?: Record<RoleTrack, number>;
+}
+
+export interface TailoredResume {
+  roleId: string;
+  generatedAt: string;
+  company: string;
+  roleTitle: string;
+  headline: string;
+  summary: string;
+  reorderedSkills: string[];
+  atsKeywords: string[];
+  bulletRewrites: { original: string; tailored: string; why: string }[];
+  projectRewrites: { original: string; tailored: string; why: string }[];
+  gapAnalysis: string[];
+  integrityNotes: string[];
 }

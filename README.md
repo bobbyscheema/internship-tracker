@@ -9,7 +9,8 @@ A polished, local-first tracker for **US-based, onsite/hybrid Summer 2027 underg
 - A strict seven-day feed based on the employer-controlled posting timestamp
 - Curated Frontier AI, Elite Quant, and Premium Tech watchlists selected for intern compensation, engineering reputation, and selectivity
 - Filters for US location and undergraduate experience level, including sophomore-friendly roles
-- Local PDF/DOCX resume storage and explainable fit scoring
+- Local PDF/DOCX resume storage and weighted fit scoring across skill coverage, related technologies, track alignment, eligibility, evidence quality, and location
+- Opt-in AI resume tailoring for a selected role, with experience/project rewrites, honest skill ordering, ATS keywords, gap analysis, copy, and download
 - A focused inbox: opening the original employer posting permanently hides that role locally
 - Company-level interview and OA reports from recent Reddit discussions
 - Track-specific technical and behavioral preparation advice
@@ -31,13 +32,19 @@ Open [http://localhost:3000](http://localhost:3000). The first page load starts 
 
 Open **Alerts** in the sidebar and configure everything in the GUI. Choose Gmail, Outlook, Yahoo, or custom SMTP; enter the sending account's app password; choose a frequency; send a test; and enable alerts. Settings take effect without restarting and remain only in the local gitignored database. The app must be running for scheduled emails to send.
 
+## AI resume tailoring
+
+Open **Resume match**, select a role, and add an OpenAI API key the first time you generate a tailored draft. You can alternatively set `OPENAI_API_KEY` in `.env.local`. The key is stored only in the gitignored local database; the app uses `gpt-5.6-luna` through the Responses API with response storage disabled. Tailored drafts are saved locally and can be copied or downloaded as text.
+
+The tailoring prompt is intentionally truth-preserving: it may reword and reorder evidence already present in the resume, but it must not invent skills, employers, responsibilities, outcomes, or metrics. Missing qualifications appear separately as skills to build.
+
 ## Local data and privacy
 
 - Database: `data/internships.db`
 - Resumes: `data/resumes/`
 - Secrets: `.env.local`
 
-All three are gitignored. Resume text is extracted locally and is never sent to a third-party matching service.
+All three are gitignored. Fit scoring and parsing stay completely local. Resume text is sent to OpenAI only when you explicitly click **Tailor with AI**; ordinary uploads, matching, scraping, and email alerts do not send it to an AI service.
 
 ## Source rules
 

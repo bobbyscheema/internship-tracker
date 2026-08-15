@@ -35,6 +35,10 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT, started_at TEXT NOT NULL, finished_at TEXT,
     found INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, message TEXT
   );
+  CREATE TABLE IF NOT EXISTS role_enrichments (
+    source_url TEXT PRIMARY KEY, description TEXT NOT NULL, requirements TEXT NOT NULL,
+    skills TEXT NOT NULL, successful INTEGER NOT NULL, fetched_at TEXT NOT NULL
+  );
 `);
 
 const json = <T>(value: string): T => JSON.parse(value) as T;
@@ -71,6 +75,16 @@ export function getRoles(): Role[] {
 }
 
 export function getRole(id: string) { return getRoles().find((role) => role.id === id); }
+
+export interface RoleEnrichment { description: string; requirements: string[]; skills: string[]; successful: boolean; fetchedAt: string; }
+export function getRoleEnrichment(sourceUrl: string): RoleEnrichment | undefined {
+  const row = db.prepare(`SELECT description,requirements,skills,successful,fetched_at FROM role_enrichments WHERE source_url=?`).get(sourceUrl) as Record<string, unknown> | undefined;
+  return row ? { description: String(row.description), requirements: json(String(row.requirements)), skills: json(String(row.skills)), successful: Boolean(row.successful), fetchedAt: String(row.fetched_at) } : undefined;
+}
+export function saveRoleEnrichment(sourceUrl: string, enrichment: Omit<RoleEnrichment, "fetchedAt">) {
+  db.prepare(`INSERT INTO role_enrichments(source_url,description,requirements,skills,successful,fetched_at) VALUES(?,?,?,?,?,?) ON CONFLICT(source_url) DO UPDATE SET description=excluded.description,requirements=excluded.requirements,skills=excluded.skills,successful=excluded.successful,fetched_at=excluded.fetched_at`)
+    .run(sourceUrl, enrichment.description, JSON.stringify(enrichment.requirements), JSON.stringify(enrichment.skills), enrichment.successful ? 1 : 0, new Date().toISOString());
+}
 
 export function markRoleViewed(roleId: string) {
   db.prepare(`INSERT OR IGNORE INTO viewed_roles(role_id,viewed_at) VALUES(?,?)`).run(roleId, new Date().toISOString());
