@@ -107,8 +107,13 @@ function isEngineeringAdjacent(title: string) {
     && !/trader|trading intern|research|analyst|strategy|portfolio|risk|operations/.test(value);
 }
 
+function isExplicitQuantDeveloper(title: string) {
+  return /\bquant(?:itative)?\s+(?:software\s+)?(?:dev|developer|development engineer)\b/i.test(title);
+}
+
 function classify(company: string, title: string, body: string, category?: string): RoleTrack | undefined {
   const value = `${title} ${body}`.toLowerCase();
+  if (isExplicitQuantDeveloper(title)) return "quant";
   const quantEmployer = isQuantFirm(company) || category === "Quantitative Finance";
   if (quantEmployer && isEngineeringAdjacent(title)) return "quant";
   if (quantEmployer) return undefined;
