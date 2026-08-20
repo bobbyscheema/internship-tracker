@@ -101,12 +101,18 @@ export function deactivateEventsBySource(sourceName: string) {
 }
 
 export function upsertRecruitingEvent(event: RecruitingEvent) {
+  const seenAt = new Date().toISOString();
+  const updated = db.prepare(`UPDATE recruiting_events SET company=?,title=?,description=?,start_at=?,end_at=?,registration_deadline=?,location=?,format=?,category=?,audience=?,registration_url=?,source_name=?,active=1,last_seen_at=? WHERE id=?`).run(
+    event.company, event.title, event.description, event.startAt, event.endAt ?? null, event.registrationDeadline ?? null,
+    event.location, event.format, event.category, event.audience, event.registrationUrl, event.sourceName, seenAt, event.id
+  );
+  if (updated.changes) return;
   db.prepare(`INSERT INTO recruiting_events(id,company,title,description,start_at,end_at,registration_deadline,location,format,category,audience,registration_url,source_name,active,last_seen_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?) ON CONFLICT(registration_url) DO UPDATE SET company=excluded.company,title=excluded.title,
     description=excluded.description,start_at=excluded.start_at,end_at=excluded.end_at,registration_deadline=excluded.registration_deadline,location=excluded.location,format=excluded.format,
     category=excluded.category,audience=excluded.audience,source_name=excluded.source_name,active=1,last_seen_at=excluded.last_seen_at`).run(
       event.id, event.company, event.title, event.description, event.startAt, event.endAt ?? null, event.registrationDeadline ?? null, event.location,
-      event.format, event.category, event.audience, event.registrationUrl, event.sourceName, new Date().toISOString()
+      event.format, event.category, event.audience, event.registrationUrl, event.sourceName, seenAt
     );
 }
 

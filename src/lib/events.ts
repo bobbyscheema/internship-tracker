@@ -6,35 +6,14 @@ export const EVENT_DIRECTORIES = [
   { company: "NVIDIA", label: "University recruiting", url: "https://www.nvidia.com/en-us/about-nvidia/careers/university-recruiting/events-calendar/" },
   { company: "Microsoft", label: "Early-career virtual events", url: "https://careers.microsoft.com/v2/global/en/virtualevents" },
   { company: "Google", label: "Careers OnAir", url: "https://careersonair.withgoogle.com/" },
-  { company: "JPMorganChase", label: "Student events", url: "https://careers.jpmorgan.com/us/en/students/events" },
-  { company: "GitHub", label: "Education events", url: "https://education.github.com/events" },
+  { company: "Amazon", label: "University talent", url: "https://www.amazon.jobs/content/en/career-programs/university/" },
+  { company: "Jane Street", label: "Programs and events", url: "https://www.janestreet.com/join-jane-street/programs-and-events/" },
+  { company: "Citadel", label: "Student programs", url: "https://www.citadel.com/careers/students/discover-citadel/programs-and-events/" },
 ] as const;
 
 const OPPORTUNITY_SOURCE = {
   company: "Student opportunity trackers", label: "Underclassmen opportunities",
   url: "https://raw.githubusercontent.com/Jose-Gael-Cruz-Lopez/underclassmen-opportunities/main/README.md",
-};
-
-const AI_SOURCE_NAME = "AI web discovery";
-const MODEL = "gpt-5.6-luna";
-
-export const EVENT_SEARCH_PROMPT = `Search the web for newly announced or upcoming high-value software engineering, AI/ML, systems, GPU/computer architecture, and quant developer recruiting events for college students, especially Summer 2027 internship candidates.
-
-Prioritize company-specific university recruiting events, sophomore programs, engineering webinars, recruiter Q&As, technical workshops, career fairs, and early-talent programs from major technology, aerospace, quantitative trading/finance, and engineering companies.
-
-Return only worthwhile events that are still open for registration and that a US undergraduate can attend, including virtual events available in the US. Exclude generic job pages, recordings, broad non-technical conferences, expired registration pages, graduate-only events, and ordinary social events. Every result must have a verifiable future date/time and a direct registration or official event link. Include the company, event name, start date/time with timezone, end time when known, registration deadline when available, location/virtual format, intended audience, a concise reason it is valuable, and the registration link. If a fact is unavailable, leave only that optional field null rather than guessing.`;
-
-const aiEventSchema = {
-  type: "object",
-  properties: {
-    events: { type: "array", items: { type: "object", properties: {
-      company: { type: "string" }, title: { type: "string" }, description: { type: "string" },
-      startAt: { type: "string" }, endAt: { type: ["string", "null"] }, registrationDeadline: { type: ["string", "null"] },
-      location: { type: "string" }, format: { type: "string", enum: ["virtual", "in-person", "hybrid"] },
-      category: { type: "string", enum: ["info-session", "career-fair", "hackathon", "tech-talk", "workshop", "conference", "other"] },
-      audience: { type: "string" }, registrationUrl: { type: "string" },
-    }, required: ["company", "title", "description", "startAt", "endAt", "registrationDeadline", "location", "format", "category", "audience", "registrationUrl"], additionalProperties: false } },
-  }, required: ["events"], additionalProperties: false,
 };
 
 const idFor = (value: string) => crypto.createHash("sha256").update(value).digest("hex").slice(0, 20);
@@ -152,56 +131,43 @@ function parseOpportunityEvents(markdown: string): RecruitingEvent[] {
 
 async function scrapeOpportunityTracker() { return parseOpportunityEvents(await fetchText(OPPORTUNITY_SOURCE.url, 15_000)); }
 
-function responseText(payload: Record<string, unknown>) {
-  if (typeof payload.output_text === "string") return payload.output_text;
-  const output = Array.isArray(payload.output) ? payload.output : [];
-  for (const item of output as { content?: { type?: string; text?: string; refusal?: string }[] }[]) {
-    for (const content of item.content ?? []) {
-      if (content.type === "output_text" && content.text) return content.text;
-      if (content.type === "refusal") throw new Error(content.refusal || "The model declined the event search.");
-    }
-  }
-  throw new Error("The AI event search returned no structured results.");
+interface JaneStreetEvent {
+  id: string | number; position: string; event_date: string; event_location: string; event_time: string;
+  event_description: string; event_type: string; event_continent: string; event_url?: string | null; event_registration_deadline?: string | null;
 }
 
-async function scrapeAiWeb(apiKey: string): Promise<RecruitingEvent[]> {
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(90_000),
-    body: JSON.stringify({
-      model: MODEL, store: false, reasoning: { effort: "low" }, max_output_tokens: 8000,
-      tools: [{ type: "web_search_preview", search_context_size: "high", user_location: { type: "approximate", country: "US", timezone: "America/Los_Angeles" } }],
-      input: `${EVENT_SEARCH_PROMPT}\n\nToday is ${new Date().toISOString()}. Search broadly, favor official company and university sources, and return at most 30 events.`,
-      text: { format: { type: "json_schema", name: "recruiting_events", strict: true, schema: aiEventSchema } },
-    }),
-  });
-  const payload = await response.json() as Record<string, unknown>;
-  if (!response.ok) {
-    const apiError = payload.error as { message?: string } | undefined;
-    throw new Error(apiError?.message || `OpenAI event search failed (${response.status}).`);
-  }
-  const parsed = JSON.parse(responseText(payload)) as { events: Array<Omit<RecruitingEvent, "id" | "sourceName"> & { endAt: string | null; registrationDeadline: string | null }> };
-  return parsed.events.flatMap((value) => {
-    const start = validDate(value.startAt);
-    const deadline = validDate(value.registrationDeadline ?? undefined);
-    if (!start || start.getTime() < Date.now() - 4 * 60 * 60_000 || (deadline && deadline.getTime() < Date.now())) return [];
-    if (!/^https:\/\//.test(value.registrationUrl)) return [];
+async function scrapeJaneStreetEvents(): Promise<RecruitingEvent[]> {
+  const directory = EVENT_DIRECTORIES.find((source) => source.company === "Jane Street")!;
+  const endpoints = ["events.json", "events-from-gsheet-nyc.json", "events-from-gsheet-ldn.json", "events-from-gsheet-hkg.json"];
+  const results = await Promise.allSettled(endpoints.map(async (endpoint) => JSON.parse(await fetchText(`https://www.janestreet.com/jobs/${endpoint}`, 12_000)) as JaneStreetEvent[]));
+  const events = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+  const normalized = events.flatMap((value) => {
+    const start = validDate(`${value.event_date}T12:00:00`);
+    const description = textOnly(value.event_description);
+    const technical = /software|engineer|technology|computer|programming|systems|infrastructure|machine learning|\bml\b|language model|data|FPGA|career fair|recruit/i.test(`${value.position} ${description} ${value.event_type}`);
+    const accessible = /north america/i.test(value.event_continent) || /^virtual/i.test(value.event_location);
+    if (!start || start.getTime() < Date.now() - 4 * 60 * 60_000 || !technical || !accessible) return [];
+    const deadline = validDate(value.event_registration_deadline ?? undefined);
+    if (deadline && deadline.getTime() < Date.now()) return [];
     const event: RecruitingEvent = {
-      ...value, id: idFor(`${value.company}:${value.title}:${start.toISOString()}`), startAt: start.toISOString(),
-      endAt: validDate(value.endAt ?? undefined)?.toISOString(), registrationDeadline: deadline?.toISOString(), sourceName: AI_SOURCE_NAME,
+      id: idFor(`jane-street:${value.id}`), company: "Jane Street", title: value.position, description,
+      startAt: start.toISOString(), registrationDeadline: deadline?.toISOString(), location: value.event_location,
+      format: formatFor(value.event_location), category: categoryFor(`${value.event_type} ${value.position}`),
+      audience: "University students and technical candidates", registrationUrl: value.event_url || `${directory.url}#event-${value.id}`,
+      sourceName: directory.label,
     };
-    return isRelevantEvent(event) ? [event] : [];
+    return [event];
   });
+  return [...new Map(normalized.map((event) => [event.id, event])).values()];
 }
 
-let activeScrape: Promise<{ found: number; checked: number; failed: number; aiEnabled: boolean }> | undefined;
-async function runEventScrape(suppliedKey?: string) {
-  const cleanKey = suppliedKey?.trim();
-  if (cleanKey) setSetting("openaiApiKey", cleanKey);
-  const apiKey = cleanKey || process.env.OPENAI_API_KEY || getSetting("openaiApiKey");
-  const sources = [...EVENT_DIRECTORIES.map((source) => ({ name: source.label, run: () => scrapeOfficialDirectory(source) })), { name: OPPORTUNITY_SOURCE.label, run: scrapeOpportunityTracker }];
-  if (apiKey) sources.push({ name: AI_SOURCE_NAME, run: () => scrapeAiWeb(apiKey) });
+let activeScrape: Promise<{ found: number; checked: number; failed: number }> | undefined;
+async function runEventScrape() {
+  const sources = [
+    ...EVENT_DIRECTORIES.filter((source) => source.company !== "Jane Street").map((source) => ({ name: source.label, run: () => scrapeOfficialDirectory(source) })),
+    { name: "Programs and events", run: scrapeJaneStreetEvents },
+    { name: OPPORTUNITY_SOURCE.label, run: scrapeOpportunityTracker },
+  ];
   const results = await Promise.allSettled(sources.map((source) => source.run()));
   let found = 0;
   results.forEach((result, index) => {
@@ -211,12 +177,12 @@ async function runEventScrape(suppliedKey?: string) {
     found += result.value.length;
   });
   setSetting("lastEventScrapeAt", new Date().toISOString());
-  return { found, checked: sources.length, failed: results.filter((result) => result.status === "rejected").length, aiEnabled: Boolean(apiKey) };
+  return { found, checked: sources.length, failed: results.filter((result) => result.status === "rejected").length };
 }
 
-export async function scrapeEvents(apiKey?: string) {
+export async function scrapeEvents() {
   if (activeScrape) return activeScrape;
-  activeScrape = runEventScrape(apiKey);
+  activeScrape = runEventScrape();
   try { return await activeScrape; } finally { activeScrape = undefined; }
 }
 

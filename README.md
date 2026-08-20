@@ -8,7 +8,7 @@ A polished, local-first tracker for **US-based, onsite/hybrid Summer 2027 underg
 - Employer-board scraping on startup, every 5 minutes, and through a manual refresh
 - A strict seven-day feed based on the employer-controlled posting timestamp
 - One Top Companies tab combining Frontier AI, elite quant, and premium technology employers selected for intern compensation, engineering reputation, and selectivity
-- A recruiting events calendar for upcoming student sessions, engineering talks, recruiter Q&As, workshops, career fairs, conferences, and hiring hackathons, with hourly AI-assisted web discovery plus automatic and manual refresh
+- A recruiting events calendar for upcoming student sessions, engineering talks, recruiter Q&As, workshops, career fairs, conferences, and hiring hackathons, using free public sources with automatic hourly and manual refresh
 - Filters for role type and US location; grade-level categories are intentionally omitted
 - Local PDF/DOCX resume storage and weighted fit scoring across skill coverage, related technologies, track alignment, eligibility, evidence quality, and location
 - Opt-in AI resume tailoring for a selected role, with experience/project rewrites, honest skill ordering, ATS keywords, gap analysis, copy, and download
@@ -49,7 +49,7 @@ All three are gitignored. Fit scoring and parsing stay completely local. Resume 
 
 ## Source rules
 
-The source adapters check public employer-hosted Greenhouse boards and the machine-readable data maintained by the [SimplifyJobs/Pitt CSC Summer 2027 repository](https://github.com/SimplifyJobs/Summer2027-Internships/tree/dev). A listing is accepted only when:
+The source adapters check public employer-hosted Greenhouse boards, the machine-readable data maintained by the [SimplifyJobs/Pitt CSC Summer 2027 repository](https://github.com/SimplifyJobs/Summer2027-Internships/tree/dev), and the public [Intern List software-engineering feed](https://www.intern-list.com/swe-intern-list) plus its data/quant feed. A listing is accepted only when:
 
 1. the employer title explicitly contains `intern` or `internship`;
 2. it maps to SWE, ML, or adjacent engineering at a quant firm, hedge fund, or prop shop (no trader, researcher, portfolio, or analyst roles);
@@ -59,7 +59,7 @@ The source adapters check public employer-hosted Greenhouse boards and the machi
 
 Add more public Greenhouse board slugs with `GREENHOUSE_BOARDS` in `.env.local`. Scraping is deliberately conservative and does not bypass authentication, CAPTCHAs, or site restrictions.
 
-The Events tab checks public event directories from NVIDIA University Recruiting, Microsoft Early Careers, Google Careers OnAir, JPMorganChase student programs, GitHub Education, and a community-maintained undergraduate opportunity tracker. When an OpenAI API key is configured, it also uses Responses API web search to find high-value software engineering, AI/ML, systems, GPU/architecture, aerospace, and quant-developer recruiting events. Only future, US-accessible student events with open registration and a direct source link are retained; registration deadlines are shown when available. New worthwhile events are sent once through the existing email-alert configuration.
+The Events tab checks free public calendars and feeds from NVIDIA University Recruiting, Microsoft Early Careers, Google Careers OnAir, Amazon University Talent, Jane Street, Citadel, and a community-maintained undergraduate opportunity tracker. The bottom directory contains only Big Tech, frontier AI, and elite quant recruiting hubs. Only future, US-accessible student engineering events with open registration are retained; registration deadlines are shown when available. New worthwhile events are sent once through the existing email-alert configuration.
 
 ## Checks
 

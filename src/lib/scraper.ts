@@ -70,6 +70,14 @@ interface GreenhouseJob {
   metadata?: { name: string; value: string | string[] | null }[];
 }
 
+interface InternListJobPosting {
+  title?: string;
+  description?: string;
+  datePosted?: string;
+  hiringOrganization?: { name?: string };
+  jobLocation?: { address?: { addressLocality?: string; addressRegion?: string; addressCountry?: string } } | Array<{ address?: { addressLocality?: string; addressRegion?: string; addressCountry?: string } }>;
+}
+
 const textOnly = (html = "") => html
   .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;|&apos;/g, "'")
   .replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&nbsp;|&#160;/g, " ").replace(/\s+/g, " ").trim();
@@ -77,7 +85,7 @@ const idFor = (value: string) => crypto.createHash("sha256").update(value).diges
 
 function isInternship(title: string) {
   const value = title.toLowerCase();
-  return /\b(intern|internship)\b/.test(value) && !/graduate intern|phd intern|postdoc|mba intern/.test(value);
+  return /\b(intern|internship)\b/.test(value) && !/graduate.*intern|master'?s?.*intern|phd.*intern|postdoc|mba.*intern/.test(value);
 }
 
 function isSummer2027Relevant(title: string, body: string, postedAt: Date) {
@@ -112,14 +120,14 @@ function isExplicitQuantDeveloper(title: string) {
 }
 
 function classify(company: string, title: string, body: string, category?: string): RoleTrack | undefined {
-  const value = `${title} ${body}`.toLowerCase();
+  const titleValue = title.toLowerCase();
   if (isExplicitQuantDeveloper(title)) return "quant";
   const quantEmployer = isQuantFirm(company) || category === "Quantitative Finance";
   if (quantEmployer && isEngineeringAdjacent(title)) return "quant";
   if (quantEmployer) return undefined;
-  if (/machine learning|\bml\b|artificial intelligence|\bai\b|deep learning|computer vision|natural language|\bnlp\b|data scien/.test(value)
-      && !/recruiter|strategy|analytics|business intelligence/.test(title.toLowerCase())) return "ml";
-  if (category === "Software" || /software|developer|engineering intern|backend|frontend|full.?stack|infrastructure|systems engineer/.test(value)) return "swe";
+  if (/machine learning|\bml\b|artificial intelligence|\bai\b|deep learning|computer vision|natural language|\bnlp\b|data scien/.test(titleValue)
+      && !/recruiter|strategy|business intelligence/.test(titleValue)) return "ml";
+  if (category === "Software" || /software|developer|development|engineering intern|backend|frontend|full.?stack|firmware|infrastructure|systems engineer|application engineer/.test(titleValue)) return "swe";
 }
 
 function featuredGroupFor(company: string): Role["featuredGroup"] | undefined {
@@ -220,6 +228,72 @@ async function scrapeSimplifyRepository(): Promise<Role[]> {
   return enriched;
 }
 
+function internListIndexEntries(html: string) {
+  const entries: { url: string; title: string; company: string; postedAt: Date }[] = [];
+  const pattern = /<a href="(\/(?:swe|da)-intern-list\/[^"?#]+)" class="flex-block-27[^"]*">[\s\S]*?<p class="jobtitle">([\s\S]*?)<\/p><p class="blogtag">([\s\S]*?)<\/p>[\s\S]*?<p class="companyname_list">([\s\S]*?)<\/p><\/a>/gi;
+  for (const match of html.matchAll(pattern)) {
+    const postedAt = new Date(textOnly(match[3]));
+    if (Number.isNaN(postedAt.getTime())) continue;
+    entries.push({ url: new URL(match[1], "https://www.intern-list.com").href, title: textOnly(match[2]), company: textOnly(match[4]), postedAt });
+  }
+  return entries;
+}
+
+function internListLocation(value: InternListJobPosting["jobLocation"]) {
+  const locations = (Array.isArray(value) ? value : value ? [value] : []).map((item) => {
+    const address = item.address;
+    return [address?.addressLocality, address?.addressRegion].filter(Boolean).join(", ");
+  }).filter(Boolean);
+  return [...new Set(locations)].join("; ");
+}
+
+async function internListRole(entry: { url: string; title: string; company: string; postedAt: Date }): Promise<Role | undefined> {
+  const response = await fetch(entry.url, { headers: { "User-Agent": "InternshipRadar/0.1 local personal-use", Accept: "text/html" }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) return;
+  const html = await response.text();
+  const match = html.match(/<script[^>]+id=['"]job-posting['"][^>]*>([\s\S]*?)<\/script>/i);
+  if (!match) return;
+  let posting: InternListJobPosting;
+  try { posting = JSON.parse(match[1]) as InternListJobPosting; } catch { return; }
+  const title = textOnly(posting.title ?? entry.title);
+  const company = textOnly(posting.hiringOrganization?.name ?? entry.company);
+  const body = textOnly(posting.description ?? "");
+  const postedAt = posting.datePosted ? new Date(posting.datePosted.replace(" ", "T") + (/[zZ]|[+-]\d\d:?\d\d$/.test(posting.datePosted) ? "" : "Z")) : entry.postedAt;
+  const location = internListLocation(posting.jobLocation);
+  const workModeMatch = html.match(/<div class="text-block-47">(Onsite|Hybrid|Remote)<\/div>/i)?.[1]?.toLowerCase();
+  const track = classify(company, title, body);
+  if (Number.isNaN(postedAt.getTime()) || Date.now() - postedAt.getTime() > 7 * 86400000 || postedAt.getTime() > Date.now() + 86400000) return;
+  if (isExcludedCompany(company) || !track || !isInternship(title) || !isSummer2027Relevant(title, "", postedAt) || !location || !isUsLocation(location) || workModeMatch === "remote") return;
+  const featuredGroup = featuredGroupFor(company);
+  return {
+    id: idFor(`intern-list:${entry.url}`), company, title, track, location,
+    workMode: workModeMatch === "hybrid" ? "hybrid" : "onsite", experience: experienceFor(`${title} ${body}`),
+    description: body.slice(0, 3500), requirements: requirementsFrom(posting.description ?? ""), skills: extractSkills(`${title} ${body}`),
+    postedAt: postedAt.toISOString(), sourceUrl: entry.url, source: "Intern List", featured: Boolean(featuredGroup), featuredGroup,
+  };
+}
+
+async function scrapeInternList(): Promise<Role[]> {
+  const indexUrls = [
+    "https://www.intern-list.com/swe-intern-list",
+    "https://www.intern-list.com/swe-intern-list?e3be0bc2_page=2",
+    "https://www.intern-list.com/da-intern-list",
+  ];
+  const pages = await Promise.all(indexUrls.map(async (url) => {
+    const response = await fetch(url, { headers: { "User-Agent": "InternshipRadar/0.1 local personal-use", Accept: "text/html" }, cache: "no-store", signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw new Error(`Intern List returned ${response.status}`);
+    return response.text();
+  }));
+  const cutoff = Date.now() - 7 * 86400000;
+  const entries = [...new Map(pages.flatMap(internListIndexEntries).filter((entry) => entry.postedAt.getTime() >= cutoff).map((entry) => [entry.url, entry])).values()];
+  const roles: Role[] = [];
+  for (let index = 0; index < entries.length; index += 8) {
+    const batch = await Promise.all(entries.slice(index, index + 8).map(internListRole));
+    roles.push(...batch.filter((role): role is Role => Boolean(role)));
+  }
+  return roles;
+}
+
 async function enrichIndexedRole(role: Role): Promise<Role> {
   const cached = getRoleEnrichment(role.sourceUrl);
   const cacheAge = cached ? Date.now() - new Date(cached.fetchedAt).getTime() : Infinity;
@@ -253,7 +327,7 @@ async function runRoleScrape() {
   try {
     const extra = (process.env.GREENHOUSE_BOARDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
     const boards = [...new Set([...DEFAULT_BOARDS, ...extra])];
-    const batches = await Promise.allSettled([...boards.map(scrapeBoard), scrapeSimplifyRepository()]);
+    const batches = await Promise.allSettled([...boards.map(scrapeBoard), scrapeSimplifyRepository(), scrapeInternList()]);
     const candidates = batches.flatMap((batch) => batch.status === "fulfilled" ? batch.value : []);
     const deduped = new Map<string, Role>();
     for (const role of candidates) {
@@ -266,7 +340,7 @@ async function runRoleScrape() {
     roles.forEach(upsertRole);
     const failed = batches.filter((batch) => batch.status === "rejected").length;
     finishScrape(runId, roles.length, "complete", failed ? `${failed} sources were unavailable` : "All sources checked");
-    return { found: roles.length, checked: boards.length + 1, failed };
+    return { found: roles.length, checked: boards.length + 2, failed };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown scraper error";
     finishScrape(runId, 0, "failed", message);
