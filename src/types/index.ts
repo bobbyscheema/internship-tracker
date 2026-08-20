@@ -9,6 +9,7 @@ export interface RecruitingEvent {
   description: string;
   startAt: string;
   endAt?: string;
+  registrationDeadline?: string;
   location: string;
   format: "virtual" | "in-person" | "hybrid";
   category: "info-session" | "career-fair" | "hackathon" | "tech-talk" | "workshop" | "conference" | "other";
