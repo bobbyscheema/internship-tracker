@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
+import { isEventInLocationScope } from "@/lib/event-location";
 import type { InterviewInsight, RecruitingEvent, ResumeProfile, Role } from "@/types";
 
 const dataDir = path.join(process.cwd(), "data");
@@ -126,7 +127,7 @@ export function getRecruitingEvents(): RecruitingEvent[] {
     registrationDeadline: row.registration_deadline ? String(row.registration_deadline) : undefined, location: String(row.location),
     format: row.format as RecruitingEvent["format"], category: row.category as RecruitingEvent["category"],
     audience: String(row.audience), registrationUrl: String(row.registration_url), sourceName: String(row.source_name),
-  }));
+  })).filter(isEventInLocationScope);
 }
 
 export function getEmailedEventIds() {

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { isEventInLocationScope } from "@/lib/event-location";
 import { deactivateEventsBySource, getSetting, setSetting, upsertRecruitingEvent } from "@/lib/store";
 import type { RecruitingEvent } from "@/types";
 
@@ -37,8 +38,7 @@ function formatFor(location: string): RecruitingEvent["format"] {
 function isRelevantEvent(event: RecruitingEvent) {
   const content = `${event.title} ${event.description} ${event.audience}`;
   const relevant = /student|undergrad|university|early career|recruit|career fair|intern|software|engineer|developer|coding|hackathon|code for good|tech talk|technical workshop|interview|resume/i.test(content);
-  const outsideUS = /\b(uganda|india|canada|united kingdom|australia|singapore|germany|france|spain|italy|brazil|mexico|nigeria|kenya|japan|china|hong kong|taiwan|philippines|indonesia|malaysia|pakistan|bangladesh)\b/i.test(event.location);
-  return relevant && (event.format !== "in-person" || !outsideUS);
+  return relevant && isEventInLocationScope(event);
 }
 
 function validDate(value: unknown) {
@@ -145,8 +145,7 @@ async function scrapeJaneStreetEvents(): Promise<RecruitingEvent[]> {
     const start = validDate(`${value.event_date}T12:00:00`);
     const description = textOnly(value.event_description);
     const technical = /software|engineer|technology|computer|programming|systems|infrastructure|machine learning|\bml\b|language model|data|FPGA|career fair|recruit/i.test(`${value.position} ${description} ${value.event_type}`);
-    const accessible = /north america/i.test(value.event_continent) || /^virtual/i.test(value.event_location);
-    if (!start || start.getTime() < Date.now() - 4 * 60 * 60_000 || !technical || !accessible) return [];
+    if (!start || start.getTime() < Date.now() - 4 * 60 * 60_000 || !technical) return [];
     const deadline = validDate(value.event_registration_deadline ?? undefined);
     if (deadline && deadline.getTime() < Date.now()) return [];
     const event: RecruitingEvent = {
@@ -156,7 +155,7 @@ async function scrapeJaneStreetEvents(): Promise<RecruitingEvent[]> {
       audience: "University students and technical candidates", registrationUrl: value.event_url || `${directory.url}#event-${value.id}`,
       sourceName: directory.label,
     };
-    return [event];
+    return isEventInLocationScope(event) ? [event] : [];
   });
   return [...new Map(normalized.map((event) => [event.id, event])).values()];
 }

@@ -59,7 +59,7 @@ The source adapters check public employer-hosted Greenhouse boards, the machine-
 
 Add more public Greenhouse board slugs with `GREENHOUSE_BOARDS` in `.env.local`. Scraping is deliberately conservative and does not bypass authentication, CAPTCHAs, or site restrictions.
 
-The Events tab checks free public calendars and feeds from NVIDIA University Recruiting, Microsoft Early Careers, Google Careers OnAir, Amazon University Talent, Jane Street, Citadel, and a community-maintained undergraduate opportunity tracker. The bottom directory contains only Big Tech, frontier AI, and elite quant recruiting hubs. Only future, US-accessible student engineering events with open registration are retained; registration deadlines are shown when available. New worthwhile events are sent once through the existing email-alert configuration.
+The Events tab checks free public calendars and feeds from NVIDIA University Recruiting, Microsoft Early Careers, Google Careers OnAir, Amazon University Talent, Jane Street, Citadel, and a community-maintained undergraduate opportunity tracker. The bottom directory contains only Big Tech, frontier AI, and elite quant recruiting hubs. Only future virtual events or in-person/hybrid events near UC Berkeley and the wider Bay Area are retained; registration deadlines are shown when available. New worthwhile events are sent once through the existing email-alert configuration.
 
 ## Checks
 
