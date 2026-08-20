@@ -2,6 +2,21 @@ export type RoleTrack = "swe" | "ml" | "quant";
 export type WorkMode = "onsite" | "hybrid";
 export type Experience = "sophomore" | "junior" | "senior" | "all-undergrad";
 
+export interface RecruitingEvent {
+  id: string;
+  company: string;
+  title: string;
+  description: string;
+  startAt: string;
+  endAt?: string;
+  location: string;
+  format: "virtual" | "in-person" | "hybrid";
+  category: "info-session" | "career-fair" | "hackathon" | "tech-talk" | "workshop" | "conference" | "other";
+  audience: string;
+  registrationUrl: string;
+  sourceName: string;
+}
+
 export interface Role {
   id: string;
   company: string;

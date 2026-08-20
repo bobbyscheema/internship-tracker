@@ -4,11 +4,12 @@ A polished, local-first tracker for **US-based, onsite/hybrid Summer 2027 underg
 
 ## Included
 
-- Separate SWE, ML, and Quant Engineering feeds (software, quantitative developer, systems, infrastructure, data, reliability, security, and adjacent engineering roles at quant firms, hedge funds, and prop shops)
+- One master internship feed with a compact role-type filter for SWE, ML, and Quant Engineering (software, quantitative developer, systems, infrastructure, data, reliability, security, and adjacent engineering roles at quant firms, hedge funds, and prop shops)
 - Employer-board scraping on startup, every 5 minutes, and through a manual refresh
 - A strict seven-day feed based on the employer-controlled posting timestamp
-- Curated Frontier AI, Elite Quant, and Premium Tech watchlists selected for intern compensation, engineering reputation, and selectivity
-- Filters for US location and undergraduate experience level, including sophomore-friendly roles
+- One Top Companies tab combining Frontier AI, elite quant, and premium technology employers selected for intern compensation, engineering reputation, and selectivity
+- A recruiting events calendar for upcoming student sessions, engineering talks, workshops, career fairs, conferences, and hiring hackathons, with automatic and manual refresh
+- Filters for role type and US location; grade-level categories are intentionally omitted
 - Local PDF/DOCX resume storage and weighted fit scoring across skill coverage, related technologies, track alignment, eligibility, evidence quality, and location
 - Opt-in AI resume tailoring for a selected role, with experience/project rewrites, honest skill ordering, ATS keywords, gap analysis, copy, and download
 - A focused inbox: opening the original employer posting permanently hides that role locally
@@ -26,7 +27,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The first page load starts a source scan, the server and open dashboard resync every 5 minutes, and **Refresh roles** runs one immediately.
+Open [http://localhost:3000](http://localhost:3000). The first page load starts a source scan, the server and open dashboard resync roles every 5 minutes, and **Refresh roles** runs one immediately. Recruiting event calendars refresh on startup when stale, every 30 minutes while the local server runs, and whenever you select **Refresh events**.
 
 ## Email alerts
 
@@ -57,6 +58,8 @@ The source adapters check public employer-hosted Greenhouse boards and the machi
 5. it is explicitly Summer 2027, or has no conflicting year/season and falls inside the Summer 2027 recruiting window.
 
 Add more public Greenhouse board slugs with `GREENHOUSE_BOARDS` in `.env.local`. Scraping is deliberately conservative and does not bypass authentication, CAPTCHAs, or site restrictions.
+
+The Events tab checks public event directories from NVIDIA University Recruiting, Microsoft Early Careers, Google Careers OnAir, JPMorganChase student programs, GitHub Education, and a community-maintained undergraduate opportunity tracker. Only future recruiting, student, or engineering-related events are retained; official directory links remain available when a site renders registration data behind JavaScript or sign-in.
 
 ## Checks
 

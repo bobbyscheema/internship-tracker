@@ -17,6 +17,7 @@ const paths: Record<string, React.ReactNode> = {
   briefcase: <><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m-13 5h18M10 12v2h4v-2"/></>,
   chevron: <path d="m9 18 6-6-6-6"/>,
   check: <path d="m5 12 4 4L19 6"/>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,
 };
 
 export default function Icon({ name, ...props }: SVGProps<SVGSVGElement> & { name: keyof typeof paths }) {
