@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon";
 import ResumeWorkspace from "./ResumeWorkspace";
-import EventPanel from "./EventPanel";
 import type { InterviewInsight, Role, RoleTrack } from "@/types";
 
 type FeedResponse = { roles: Role[]; lastScrapeAt?: string; hasResume: boolean; resumeName?: string };
-type Section = "roles" | "top" | "events" | "resume" | "alerts";
+type Section = "roles" | "top" | "resume" | "alerts";
 
 function ageLabel(date: string) {
   const days = Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 86400000));
@@ -105,7 +104,7 @@ export default function Dashboard() {
     return `${role.company} ${role.title} ${role.skills.join(" ")}`.toLowerCase().includes(query.toLowerCase());
   }).sort((a, b) => sort === "match" ? (b.matchScore ?? 0) - (a.matchScore ?? 0) : +new Date(b.postedAt) - +new Date(a.postedAt)), [rolePool, track, location, query, sort]);
 
-  const title = section === "roles" ? "All internship roles" : section === "top" ? "Top companies" : section === "events" ? "Recruiting events" : section === "resume" ? "Resume match" : "Email alerts";
+  const title = section === "roles" ? "All internship roles" : section === "top" ? "Top companies" : section === "resume" ? "Resume match" : "Email alerts";
 
   return <div className="app-shell">
     <aside className="sidebar">
@@ -115,7 +114,6 @@ export default function Dashboard() {
         <p>WORKSPACE</p>
         <button className={section === "roles" ? "active" : ""} onClick={() => setSection("roles")}><Icon name="grid" />All roles</button>
         <button className={section === "top" ? "active" : ""} onClick={() => setSection("top")}><Icon name="spark" />Top companies</button>
-        <button className={section === "events" ? "active" : ""} onClick={() => setSection("events")}><Icon name="calendar" />Events</button>
         <p>TOOLS</p>
         <button className={section === "resume" ? "active" : ""} onClick={() => setSection("resume")}><Icon name="file" />Resume match</button>
         <button className={section === "alerts" ? "active" : ""} onClick={() => setSection("alerts")}><Icon name="bell" />Alerts</button>
@@ -139,7 +137,7 @@ export default function Dashboard() {
       </header>
 
       {section === "resume" ? <ResumeWorkspace hasResume={feed.hasResume} resumeName={feed.resumeName} onUpload={() => fileRef.current?.click()} roles={feed.roles} initialRoleId={tailorRoleId} notify={setToast} /> :
-       section === "alerts" ? <AlertsPanel notify={setToast} /> : section === "events" ? <EventPanel notify={setToast} /> : <>
+       section === "alerts" ? <AlertsPanel notify={setToast} /> : <>
         {section === "top" && <section className="featured-intro"><div><span>CURATED WATCHLIST</span><h2>Prestige and pay, without the noise.</h2><p>One combined list of the most selective, highest-paying Big Tech, quant engineering, and frontier AI internships.</p></div><Icon name="spark" /></section>}
         <section className="metrics">
           <div><span className="metric-icon purple"><Icon name="briefcase" /></span><div><strong>{rolePool.length}</strong><small>{section === "top" ? "Top-company roles" : "Active roles"}</small></div><em>US only</em></div>

@@ -1,8 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
-import { isEventInLocationScope } from "@/lib/event-location";
-import type { InterviewInsight, RecruitingEvent, ResumeProfile, Role } from "@/types";
+import type { InterviewInsight, ResumeProfile, Role } from "@/types";
 
 const dataDir = path.join(process.cwd(), "data");
 fs.mkdirSync(path.join(dataDir, "resumes"), { recursive: true });
@@ -40,17 +39,7 @@ db.exec(`
     source_url TEXT PRIMARY KEY, description TEXT NOT NULL, requirements TEXT NOT NULL,
     skills TEXT NOT NULL, successful INTEGER NOT NULL, fetched_at TEXT NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS recruiting_events (
-    id TEXT PRIMARY KEY, company TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL,
-    start_at TEXT NOT NULL, end_at TEXT, registration_deadline TEXT, location TEXT NOT NULL, format TEXT NOT NULL,
-    category TEXT NOT NULL, audience TEXT NOT NULL, registration_url TEXT UNIQUE NOT NULL,
-    source_name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, last_seen_at TEXT NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS emailed_events (
-    event_id TEXT PRIMARY KEY, emailed_at TEXT NOT NULL
-  );
 `);
-try { db.exec(`ALTER TABLE recruiting_events ADD COLUMN registration_deadline TEXT`); } catch { /* Existing databases already migrated. */ }
 
 const json = <T>(value: string): T => JSON.parse(value) as T;
 
@@ -95,58 +84,6 @@ export function getRoleEnrichment(sourceUrl: string): RoleEnrichment | undefined
 export function saveRoleEnrichment(sourceUrl: string, enrichment: Omit<RoleEnrichment, "fetchedAt">) {
   db.prepare(`INSERT INTO role_enrichments(source_url,description,requirements,skills,successful,fetched_at) VALUES(?,?,?,?,?,?) ON CONFLICT(source_url) DO UPDATE SET description=excluded.description,requirements=excluded.requirements,skills=excluded.skills,successful=excluded.successful,fetched_at=excluded.fetched_at`)
     .run(sourceUrl, enrichment.description, JSON.stringify(enrichment.requirements), JSON.stringify(enrichment.skills), enrichment.successful ? 1 : 0, new Date().toISOString());
-}
-
-export function deactivateEventsBySource(sourceName: string) {
-  db.prepare(`UPDATE recruiting_events SET active=0 WHERE source_name=?`).run(sourceName);
-}
-
-export function upsertRecruitingEvent(event: RecruitingEvent) {
-  const seenAt = new Date().toISOString();
-  const updated = db.prepare(`UPDATE recruiting_events SET company=?,title=?,description=?,start_at=?,end_at=?,registration_deadline=?,location=?,format=?,category=?,audience=?,registration_url=?,source_name=?,active=1,last_seen_at=? WHERE id=?`).run(
-    event.company, event.title, event.description, event.startAt, event.endAt ?? null, event.registrationDeadline ?? null,
-    event.location, event.format, event.category, event.audience, event.registrationUrl, event.sourceName, seenAt, event.id
-  );
-  if (updated.changes) return;
-  db.prepare(`INSERT INTO recruiting_events(id,company,title,description,start_at,end_at,registration_deadline,location,format,category,audience,registration_url,source_name,active,last_seen_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?) ON CONFLICT(registration_url) DO UPDATE SET company=excluded.company,title=excluded.title,
-    description=excluded.description,start_at=excluded.start_at,end_at=excluded.end_at,registration_deadline=excluded.registration_deadline,location=excluded.location,format=excluded.format,
-    category=excluded.category,audience=excluded.audience,source_name=excluded.source_name,active=1,last_seen_at=excluded.last_seen_at`).run(
-      event.id, event.company, event.title, event.description, event.startAt, event.endAt ?? null, event.registrationDeadline ?? null, event.location,
-      event.format, event.category, event.audience, event.registrationUrl, event.sourceName, seenAt
-    );
-}
-
-export function getRecruitingEvents(): RecruitingEvent[] {
-  const now = new Date();
-  const rows = db.prepare(`SELECT * FROM recruiting_events WHERE active=1 AND COALESCE(end_at,start_at)>=? AND (registration_deadline IS NULL OR registration_deadline>=?) ORDER BY start_at ASC`)
-    .all(new Date(now.getTime() - 4 * 60 * 60_000).toISOString(), now.toISOString()) as Record<string, unknown>[];
-  return rows.map((row) => ({
-    id: String(row.id), company: String(row.company), title: String(row.title), description: String(row.description),
-    startAt: String(row.start_at), endAt: row.end_at ? String(row.end_at) : undefined,
-    registrationDeadline: row.registration_deadline ? String(row.registration_deadline) : undefined, location: String(row.location),
-    format: row.format as RecruitingEvent["format"], category: row.category as RecruitingEvent["category"],
-    audience: String(row.audience), registrationUrl: String(row.registration_url), sourceName: String(row.source_name),
-  })).filter(isEventInLocationScope);
-}
-
-export function getEmailedEventIds() {
-  const rows = db.prepare(`SELECT event_id FROM emailed_events`).all() as { event_id: string }[];
-  return new Set(rows.map((row) => row.event_id));
-}
-
-export function markEventsEmailed(eventIds: string[]) {
-  if (!eventIds.length) return;
-  const statement = db.prepare(`INSERT OR IGNORE INTO emailed_events(event_id,emailed_at) VALUES(?,?)`);
-  const emailedAt = new Date().toISOString();
-  db.exec("BEGIN");
-  try {
-    for (const eventId of eventIds) statement.run(eventId, emailedAt);
-    db.exec("COMMIT");
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
 }
 
 export function markRoleViewed(roleId: string) {

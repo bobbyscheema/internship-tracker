@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { scoreRole } from "@/lib/matching";
-import { getEmailedEventIds, getEmailedRoleIds, getRecruitingEvents, getResume, getRoles, getSetting, markEventsEmailed, markRolesEmailed, setSetting } from "@/lib/store";
-import type { RecruitingEvent, Role } from "@/types";
+import { getEmailedRoleIds, getResume, getRoles, getSetting, markRolesEmailed, setSetting } from "@/lib/store";
+import type { Role } from "@/types";
 
 export type AlertFrequency = "15m" | "1h" | "6h" | "daily";
 export type EmailProvider = "gmail" | "outlook" | "yahoo" | "custom";
@@ -160,38 +160,6 @@ export async function sendRoleDigest(): Promise<DigestResult> {
   setSetting("lastDigestAt", new Date().toISOString());
   setSetting("lastDigestStatus", JSON.stringify({ status: "sent", at: new Date().toISOString(), roleCount: roles.length }));
   return { sent: true, roleCount: roles.length };
-}
-
-function eventCard(event: RecruitingEvent) {
-  const start = new Date(event.startAt).toLocaleString([], { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
-  const deadline = event.registrationDeadline ? new Date(event.registrationDeadline).toLocaleString([], { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }) : "Not listed — register early";
-  return `<article style="border:1px solid #e8e5ec;border-radius:12px;padding:20px;margin:0 0 14px;background:#fff">
-    <div style="color:#6957de;font-size:11px;font-weight:700;letter-spacing:.8px">${escapeHtml(event.category.toUpperCase().replace("-", " "))} · ${escapeHtml(event.format.toUpperCase())}</div>
-    <h2 style="font-size:19px;line-height:1.3;margin:6px 0 2px;color:#27232d">${escapeHtml(event.title)}</h2>
-    <div style="font-weight:700;color:#4b4652">${escapeHtml(event.company)}</div>
-    <div style="font-size:13px;color:#77717e;margin:7px 0 13px">${escapeHtml(start)} · ${escapeHtml(event.location)}</div>
-    <p style="font-size:14px;line-height:1.55;color:#514c58;margin:0 0 12px">${escapeHtml(event.description)}</p>
-    <div style="font-size:13px;color:#514c58"><strong>Audience:</strong> ${escapeHtml(event.audience)}</div>
-    <div style="font-size:13px;color:#514c58;margin-top:5px"><strong>Registration deadline:</strong> ${escapeHtml(deadline)}</div>
-    <a href="${escapeHtml(event.registrationUrl)}" style="display:inline-block;margin-top:15px;background:#6957de;color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:10px 15px;border-radius:8px">View and register →</a>
-    <div style="font-size:11px;color:#99939e;margin-top:10px">Found via ${escapeHtml(event.sourceName)}</div>
-  </article>`;
-}
-
-export async function sendEventDigest(): Promise<{ sent: boolean; eventCount: number }> {
-  const settings = getEmailSettings();
-  if (!settings.enabled) return { sent: false, eventCount: 0 };
-  const emailed = getEmailedEventIds();
-  const events = getRecruitingEvents().filter((event) => !emailed.has(event.id));
-  if (!events.length) return { sent: false, eventCount: 0 };
-  const html = `<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;background:#faf9fb;padding:24px;color:#27232d">
-    <div style="background:#24212c;color:#fff;border-radius:13px;padding:24px;margin-bottom:16px"><div style="font-size:11px;letter-spacing:1.2px;color:#a999ff;font-weight:700">INTERNSHIP RADAR · EVENTS</div><h1 style="font-size:25px;margin:7px 0">${events.length} worthwhile recruiting event${events.length === 1 ? "" : "s"}</h1><p style="color:#bbb6c2;margin:0;font-size:14px">Upcoming student engineering opportunities that are still open for registration</p></div>
-    ${events.map(eventCard).join("")}
-  </div>`;
-  const plainText = events.map((event) => `${event.company} — ${event.title}\n${new Date(event.startAt).toLocaleString()}\nRegistration deadline: ${event.registrationDeadline ? new Date(event.registrationDeadline).toLocaleString() : "Not listed — register early"}\n${event.location} · ${event.format}\n${event.description}\n${event.registrationUrl}`).join("\n\n---\n\n");
-  await sendEmail(`${events.length} new recruiting event${events.length === 1 ? "" : "s"} worth checking`, html, settings, plainText);
-  markEventsEmailed(events.map((event) => event.id));
-  return { sent: true, eventCount: events.length };
 }
 
 let emailTimerStarted = false;
